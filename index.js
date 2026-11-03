@@ -102,6 +102,41 @@ app.post('/api/logout', (req, res) => {
 // 2. Studios Endpoints
 // ==========================================
 
+// Add Studio (POST)
+app.post('/api/studios', verifyJWT, async (req, res) => {
+  try {
+    const data = req.body;
+
+    const newStudio = {
+      title: data.title,
+      category: data.category,
+      hourlyRate: Number(data.hourlyRate),
+      securityDeposit: Number(data.securityDeposit || 0),
+      maxCapacity: Number(data.maxCapacity || 10),
+      location: data.location,
+      imageUrl: data.imageUrl || "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=1200&q=80",
+      gallery: Array.isArray(data.gallery) && data.gallery.length > 0
+        ? data.gallery
+        : [data.imageUrl || "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=1200&q=80"],
+      amenities: Array.isArray(data.amenities) ? data.amenities : [],
+      overview: data.overview || "High performance creative workspace with professional facilities.",
+      ownerName: data.ownerName || req.user?.name || "Studio Host",
+      ownerEmail: data.ownerEmail || req.user?.email || "host@studiospace.com",
+      ownerAvatar: data.ownerAvatar || req.user?.image || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+      rating: 5.0,
+      reviewsCount: 1,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await studiosCollection.insertOne(newStudio);
+    console.log('Inserted studio:', result);
+    res.send({ success: true, insertedId: result.insertedId, studio: newStudio });
+  } catch (err) {
+    res.status(500).send({ message: 'Error adding studio', error: err.message });
+  }
+});
+
 // All Studios (GET with Category, Search, Sort & Limit)
 app.get('/api/studios', async (req, res) => {
   try {
@@ -159,6 +194,59 @@ app.get('/api/studios/:id', async (req, res) => {
     res.send(result);
   } catch (err) {
     res.status(500).send({ message: "Error fetching studio", error: err.message });
+  }
+});
+
+// Update Studio (PATCH & PUT)
+const updateStudio = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid Studio ID" });
+    }
+
+    const updatedData = { ...req.body };
+    delete updatedData._id;
+    if (updatedData.hourlyRate) updatedData.hourlyRate = Number(updatedData.hourlyRate);
+    if (updatedData.securityDeposit) updatedData.securityDeposit = Number(updatedData.securityDeposit);
+    if (updatedData.maxCapacity) updatedData.maxCapacity = Number(updatedData.maxCapacity);
+    updatedData.updatedAt = new Date();
+
+    const result = await studiosCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedData }
+    );
+    res.send({ success: true, message: 'Studio updated successfully', result });
+  } catch (err) {
+    res.status(500).send({ message: "Update failed", error: err.message });
+  }
+};
+
+app.patch('/api/studios/:id', verifyJWT, updateStudio);
+app.put('/api/studios/:id', verifyJWT, updateStudio);
+
+// Delete Studio (DELETE)
+app.delete('/api/studios/:id', verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid Studio ID" });
+    }
+    const result = await studiosCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send({ success: true, message: 'Studio deleted successfully', result });
+  } catch (err) {
+    res.status(500).send({ message: "Delete failed", error: err.message });
+  }
+});
+
+// Host's Studios (GET)
+app.get('/api/my-studios/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const result = await studiosCollection.find({ ownerEmail: email }).sort({ createdAt: -1 }).toArray();
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Error fetching user studios", error: err.message });
   }
 });
 
