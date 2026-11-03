@@ -321,6 +321,91 @@ app.post('/api/bookings', verifyJWT, async (req, res) => {
   }
 });
 
+// User's Bookings (GET)
+app.get('/api/my-bookings/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const bookings = await bookingsCollection.find({
+      $or: [{ userEmail: email }, { email: email }]
+    }).sort({ createdAt: -1 }).toArray();
+
+    // Populate studio details if missing
+    const result = await Promise.all(
+      bookings.map(async (b) => {
+        if ((!b.studioTitle || !b.studioImage) && b.studioId && ObjectId.isValid(b.studioId)) {
+          const studio = await studiosCollection.findOne({ _id: new ObjectId(b.studioId) });
+          if (studio) {
+            return {
+              ...b,
+              studioTitle: b.studioTitle || studio.title,
+              studioImage: b.studioImage || studio.imageUrl,
+              studioLocation: b.studioLocation || studio.location,
+              category: b.category || studio.category
+            };
+          }
+        }
+        return b;
+      })
+    );
+
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Error fetching bookings", error: err.message });
+  }
+});
+
+// Single Booking Details (GET)
+app.get('/api/bookings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid booking ID" });
+    }
+    const result = await bookingsCollection.findOne({ _id: new ObjectId(id) });
+    if (!result) {
+      return res.status(404).send({ message: "Booking not found" });
+    }
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Error fetching booking", error: err.message });
+  }
+});
+
+// Cancel Booking (PATCH)
+app.patch('/api/bookings/:id/cancel', verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid Booking ID" });
+    }
+    const result = await bookingsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status: 'Cancelled', cancelledAt: new Date() } }
+    );
+    res.send({ success: true, message: 'Booking successfully cancelled', result });
+  } catch (err) {
+    res.status(500).send({ message: "Error cancelling booking", error: err.message });
+  }
+});
+
+// Update Booking Status (PATCH)
+app.patch('/api/bookings/:id/status', verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid Booking ID" });
+    }
+    const result = await bookingsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status, updatedAt: new Date() } }
+    );
+    res.send({ success: true, message: `Booking status updated to ${status}`, result });
+  } catch (err) {
+    res.status(500).send({ message: "Error updating status", error: err.message });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.send({ message: 'StudioSpace Server is running smoothly!' });
