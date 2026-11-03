@@ -406,6 +406,46 @@ app.patch('/api/bookings/:id/status', verifyJWT, async (req, res) => {
   }
 });
 
+// ==========================================
+// 4. Wishlist Endpoints
+// ==========================================
+
+// Get Wishlist (GET)
+app.get('/api/wishlist/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const items = await wishlistsCollection.find({ userEmail: email }).toArray();
+    const studioIds = items.map(item => String(item.studioId));
+    const validObjectIds = studioIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
+    const studios = await studiosCollection.find({ _id: { $in: validObjectIds } }).toArray();
+
+    res.send({ studioIds, studios });
+  } catch (err) {
+    res.status(500).send({ message: "Error fetching wishlist", error: err.message });
+  }
+});
+
+// Toggle Wishlist Item (POST)
+app.post('/api/wishlist/toggle', async (req, res) => {
+  try {
+    const { studioId, userEmail } = req.body;
+    if (!studioId || !userEmail) {
+      return res.status(400).send({ message: "studioId and userEmail are required" });
+    }
+
+    const existing = await wishlistsCollection.findOne({ studioId, userEmail });
+    if (existing) {
+      await wishlistsCollection.deleteOne({ _id: existing._id });
+      res.send({ success: true, saved: false, message: 'Removed from wishlist' });
+    } else {
+      await wishlistsCollection.insertOne({ studioId, userEmail, createdAt: new Date() });
+      res.send({ success: true, saved: true, message: 'Added to wishlist' });
+    }
+  } catch (err) {
+    res.status(500).send({ message: "Wishlist toggle failed", error: err.message });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.send({ message: 'StudioSpace Server is running smoothly!' });
