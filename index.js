@@ -24,7 +24,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 
 // MongoDB Connection
-const client = new MongoClient(process.env.MONGODB_URI);
+const client = new MongoClient(process.env.MONGODB_URI || process.env.NONGODB_URI);
 
 export async function connectToMongoDB() {
   try {
