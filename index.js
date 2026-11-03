@@ -250,6 +250,77 @@ app.get('/api/my-studios/:email', async (req, res) => {
   }
 });
 
+// ==========================================
+// 3. Bookings Endpoints
+// ==========================================
+
+// Helper: time string "HH:MM" to minutes
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+// Add Booking (POST with Double-Booking Collision Check)
+app.post('/api/bookings', verifyJWT, async (req, res) => {
+  try {
+    const data = req.body;
+    const { studioId, date, startTime, endTime } = data;
+
+    if (!studioId || !date || !startTime || !endTime) {
+      return res.status(400).send({ message: 'Studio, date, start time, and end time are required.' });
+    }
+
+    const newStart = timeToMinutes(startTime);
+    const newEnd = timeToMinutes(endTime);
+
+    if (newEnd <= newStart) {
+      return res.status(400).send({ message: 'End time must be later than start time.' });
+    }
+
+    // Double-Booking Check: Check overlap against Confirmed bookings
+    const confirmedBookings = await bookingsCollection.find({
+      studioId: studioId,
+      date: date,
+      status: "Confirmed"
+    }).toArray();
+
+    const hasCollision = confirmedBookings.some((b) => {
+      const existingStart = timeToMinutes(b.startTime);
+      const existingEnd = timeToMinutes(b.endTime);
+      return newStart < existingEnd && newEnd > existingStart;
+    });
+
+    if (hasCollision) {
+      return res.status(409).send({
+        success: false,
+        message: `Collision Detected: This studio already has a Confirmed booking on ${date} during requested hours.`
+      });
+    }
+
+    const bookingDoc = {
+      ...data,
+      hourlyRate: Number(data.hourlyRate || 0),
+      securityDeposit: Number(data.securityDeposit || 0),
+      totalHours: Number(data.totalHours || 1),
+      totalPrice: Number(data.totalPrice || 0),
+      status: "Pending",
+      createdAt: new Date()
+    };
+
+    const result = await bookingsCollection.insertOne(bookingDoc);
+    console.log('Inserted booking:', result);
+    res.status(201).send({
+      success: true,
+      message: 'Studio reservation created with status Pending!',
+      bookingId: result.insertedId,
+      booking: bookingDoc
+    });
+  } catch (err) {
+    res.status(500).send({ message: 'Error processing booking', error: err.message });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.send({ message: 'StudioSpace Server is running smoothly!' });
