@@ -98,6 +98,70 @@ app.post('/api/logout', (req, res) => {
   }).send({ success: true, message: 'Logged out successfully' });
 });
 
+// ==========================================
+// 2. Studios Endpoints
+// ==========================================
+
+// All Studios (GET with Category, Search, Sort & Limit)
+app.get('/api/studios', async (req, res) => {
+  try {
+    const { category, search, sort, limit, featured } = req.query;
+    let query = {};
+
+    if (category && category.toLowerCase() !== 'all') {
+      query.category = { $regex: new RegExp(`^${category}$`, 'i') };
+    }
+
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } },
+        { amenities: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    let cursor = studiosCollection.find(query);
+
+    if (sort === 'price_asc') {
+      cursor = cursor.sort({ hourlyRate: 1 });
+    } else if (sort === 'price_desc') {
+      cursor = cursor.sort({ hourlyRate: -1 });
+    } else if (sort === 'rating_desc' || featured === 'true') {
+      cursor = cursor.sort({ rating: -1, createdAt: -1 });
+    } else {
+      cursor = cursor.sort({ createdAt: -1 });
+    }
+
+    if (limit) {
+      cursor = cursor.limit(parseInt(limit));
+    } else if (featured === 'true') {
+      cursor = cursor.limit(6);
+    }
+
+    const result = await cursor.toArray();
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: 'Error fetching studios', error: err.message });
+  }
+});
+
+// Single Studio Details (GET)
+app.get('/api/studios/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(404).send({ message: "Invalid Studio ID" });
+    }
+    const result = await studiosCollection.findOne({ _id: new ObjectId(id) });
+    if (!result) {
+      return res.status(404).send({ message: "Studio not found" });
+    }
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Error fetching studio", error: err.message });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.send({ message: 'StudioSpace Server is running smoothly!' });
