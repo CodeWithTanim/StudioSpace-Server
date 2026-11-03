@@ -19,7 +19,7 @@ app.use(cors({
   ],
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 
 // MongoDB Connection
@@ -46,6 +46,7 @@ export function verifyJWT(req, res, next) {
   const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
+    // Fallback for direct browser testing or social logins
     const fallbackEmail = req.body?.userEmail || req.body?.ownerEmail || req.headers['x-user-email'];
     if (fallbackEmail) {
       req.user = { email: fallbackEmail, name: req.body?.userName || req.body?.ownerName || 'Creator' };
@@ -446,7 +447,10 @@ app.post('/api/wishlist/toggle', async (req, res) => {
   }
 });
 
-// Root endpoint
+// ==========================================
+// Root & Server Listen
+// ==========================================
+
 app.get('/', (req, res) => {
   res.send({ message: 'StudioSpace Server is running smoothly!' });
 });

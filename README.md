@@ -1,5 +1,7 @@
 # StudioSpace — Server API 🚀
 
+> **Live Backend API**: [https://studiospace-server-alpha-eight.vercel.app](https://studiospace-server-alpha-eight.vercel.app)  
+
 Production-grade Express.js & MongoDB backend for **StudioSpace**, the peer-to-peer creative workspace and production studio sharing platform.
 
 ## 🛠️ Tech Stack
